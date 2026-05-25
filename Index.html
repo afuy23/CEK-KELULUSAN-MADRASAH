@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Cek Kelulusan Madrasah</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* ANIMASI LOGO BERGERAK MELAYANG */
+    @keyframes floatingLogo { 
+      0% { transform: translateY(0px); } 
+      50% { transform: translateY(-12px); } 
+      100% { transform: translateY(0px); } 
+    }
+    .animate-logo-move { 
+      animation: floatingLogo 3.5s ease-in-out infinite; 
+      background: transparent !important; 
+    }
+
+    /* TOMBOL GRADASI BERGERAK */
+    @keyframes btnMove { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+    .btn-gradasi-keren {
+      background: linear-gradient(90deg, #2563eb, #ffffff, #2563eb);
+      background-size: 200% 100%;
+      animation: btnMove 3s linear infinite;
+      color: #1e3a8a;
+      font-weight: 800;
+      border: none;
+    }
+
+    /* ANIMASI RUNNING TEXT */
+    @keyframes marquee {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    .animate-marquee {
+      display: inline-block;
+      white-space: nowrap;
+      animation: marquee 15s linear infinite;
+    }
+
+    /* Animasi Bawaan */
+    @keyframes slide-down { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    .animate-slide-down { animation: slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fade-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    @keyframes bounce-in { 0% { opacity: 0; transform: scale(0.3); } 50% { transform: scale(1.1); } 70% { transform: scale(0.9); } 100% { opacity: 1; transform: scale(1); } }
+    .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    @keyframes modal-in { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .animate-modal-in { animation: modal-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    
+    @keyframes float1 { 0%, 100% { transform: translate(0, 0) scale(1); } 25% { transform: translate(60px, -30px) scale(1.05); } 50% { transform: translate(-30px, 40px) scale(0.95); } 75% { transform: translate(30px, 20px) scale(1.02); } }
+    @keyframes float2 { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(-40px, 30px) scale(1.08); } 66% { transform: translate(40px, -40px) scale(0.95); } }
+    @keyframes float3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(40px, 40px) scale(1.1); } }
+    
+    .animate-float1 { animation: float1 25s ease-in-out infinite; }
+    .animate-float2 { animation: float2 30s ease-in-out infinite; }
+    .animate-float3 { animation: float3 20s ease-in-out infinite; }
+
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen" style="font-family: 'Plus Jakarta Sans', sans-serif;">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    var useState = React.useState;
+    var useEffect = React.useEffect;
+    var useRef = React.useRef;
+
+    // ==========================================
+    // API
+    // ==========================================
+
+    function apiCall(path, data) {
+      data = data || {};
+      return new Promise(function (resolve, reject) {
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).callApi(path, data);
+      });
+    }
+
+    // ==========================================
+    // TOAST
+    // ==========================================
+
+    function Toast({ message, type, onClose }) {
+      useEffect(function () { var t = setTimeout(onClose, 4000); return function () { clearTimeout(t); }; }, []);
+      var c = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600' };
+      return (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-slide-down w-11/12 max-w-sm">
+          <div className={c[type] + ' text-white px-6 py-3 rounded-lg shadow-lg text-sm font-medium text-center'}>{message}</div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // CONFETTI
+    // ==========================================
+
+    function Confetti() {
+      var canvasRef = useRef(null);
+      useEffect(function () {
+        var canvas = canvasRef.current; if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        resize(); window.addEventListener('resize', resize);
+        var colors = ['#FFD700','#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#FF69B4','#00CED1','#FF4500','#7B68EE','#00FA9A','#FF1744','#F50057','#651FFF','#00E5FF'];
+        var particles = [];
+        for (var i = 0; i < 150; i++) {
+          particles.push({ x: Math.random()*canvas.width, y: Math.random()*-canvas.height, w: Math.random()*10+4, h: Math.random()*6+2, color: colors[Math.floor(Math.random()*colors.length)], vy: Math.random()*3+1.5, vx: (Math.random()-0.5)*2, angle: Math.random()*360, spin: (Math.random()-0.5)*8, shape: Math.random()>0.3?'rect':'circle', opacity: 1 });
+        }
+        var frame = 0, maxFrames = 300, animationId;
+        function draw() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height); frame++;
+          var fadeStart = maxFrames - 60;
+          for (var i = 0; i < particles.length; i++) {
+            var p = particles[i]; p.y += p.vy; p.x += p.vx; p.angle += p.spin; p.vx += (Math.random()-0.5)*0.1;
+            if (frame > fadeStart) p.opacity = Math.max(0, 1-(frame-fadeStart)/60);
+            ctx.save(); ctx.globalAlpha = p.opacity; ctx.translate(p.x, p.y); ctx.rotate((p.angle*Math.PI)/180); ctx.fillStyle = p.color;
+            if (p.shape === 'rect') ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+            else { ctx.beginPath(); ctx.arc(0, 0, p.w/2.5, 0, Math.PI*2); ctx.fill(); }
+            ctx.restore();
+          }
+          if (frame < maxFrames) animationId = requestAnimationFrame(draw);
+          else ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        draw();
+        return function () { cancelAnimationFrame(animationId); window.removeEventListener('resize', resize); };
+      }, []);
+      return <canvas ref={canvasRef} className="fixed inset-0 z-30 pointer-events-none" />;
+    }
+
+    // ==========================================
+    // COUNTDOWN
+    // ==========================================
+
+    function Countdown({ targetDate }) {
+      var s = useState(calcTimeLeft(targetDate)); var tl = s[0]; var setTl = s[1];
+      useEffect(function () { var iv = setInterval(function () { setTl(calcTimeLeft(targetDate)); }, 1000); return function () { clearInterval(iv); }; }, [targetDate]);
+      if (tl.total <= 0) return <div className="text-center animate-fade-in"><p className="text-white/80 text-sm">Pengumuman akan tersedia segera</p></div>;
+      return (
+        <div className="animate-fade-in w-full">
+          <div className="grid grid-cols-4 gap-2 sm:gap-3 mb-6">
+            {[ [tl.days,'Hari'], [tl.hours,'Jam'], [tl.minutes,'Menit'], [tl.seconds,'Detik'] ].map(function (item, i) {
+              return (
+                <div key={i} className="text-center">
+                  <div className="bg-white/15 backdrop-blur-sm rounded-xl w-full aspect-square flex items-center justify-center">
+                    <span className="text-2xl sm:text-4xl font-bold text-white">{String(item[0]).padStart(2,'0')}</span>
+                  </div>
+                  <p className="text-white/60 text-[10px] sm:text-xs mt-2 font-medium uppercase tracking-wider">{item[1]}</p>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-center text-white/70 text-[11px] sm:text-sm">waktu menuju pengumuman kelulusan</p>
+        </div>
+      );
+    }
+
+    function calcTimeLeft(targetDateStr) {
+      var diff = new Date(targetDateStr).getTime() - new Date().getTime();
+      if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 };
+      return { days: Math.floor(diff/86400000), hours: Math.floor((diff%86400000)/3600000), minutes: Math.floor((diff%3600000)/60000), seconds: Math.floor((diff%60000)/1000), total: diff };
+    }
+
+    function isAnnouncementOpen(d) { return !d || new Date().getTime() >= new Date(d).getTime(); }
+    function toDatetimeLocal(iso) {
+      if (!iso) return '';
+      var d = new Date(iso), p = function (n) { return String(n).padStart(2,'0'); };
+      return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
+    }
+
+    // ==========================================
+    // RESULT MODAL
+    // ==========================================
+
+    function ResultModal({ student, topThree, onClose }) {
+      var isLulus = student.status === 'Lulus';
+      var hasNilai = student.nilai !== '';
+      var hasTopThree = topThree && topThree.length > 0;
+      return (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full max-h-[95vh] overflow-y-auto animate-modal-in scroll-smooth">
+            <div className="p-6">
+              <div className="text-center mb-4">
+                {isLulus ? (
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto animate-bounce-in">
+                    <svg className="w-8 h-8 sm:w-10 sm:h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                    <svg className="w-8 h-8 sm:w-10 sm:h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </div>
+                )}
+                <p className={'text-xl font-bold mt-3 ' + (isLulus ? 'text-green-700' : 'text-red-700')}>{student.status}</p>
+                {isLulus && <p className="text-green-600 text-[13px] sm:text-sm mt-1">Alhamdulillah, Selamat atas Kelulusanmu ! perjalanan masih panjang, teruslah belajar dan pantang menyerah.</p>}
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2.5 mb-4">
+                <div className="flex justify-between text-sm"><span className="text-gray-500">NISN</span><span className="font-medium text-gray-800 font-mono break-all text-right ml-2">{student.nisn}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Nama</span><span className="font-medium text-gray-800 text-right max-w-[65%] leading-tight">{student.nama}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Kelas</span><span className="font-medium text-gray-800 text-right">{student.kelas}</span></div>
+                {hasNilai && <div className="flex justify-between text-sm"><span className="text-gray-500">Nilai</span><span className="font-bold text-gray-800">{student.nilai}</span></div>}
+              </div>
+              {hasTopThree && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                    <span className="text-sm font-semibold text-gray-700">Peringkat 3 Besar</span>
+                  </div>
+                  <div className="space-y-2">
+                    {topThree.map(function (item, i) {
+                      var mc = ['bg-yellow-100 text-yellow-700','bg-gray-100 text-gray-600','bg-orange-100 text-orange-700'];
+                      var mi = ['🥇','🥈','🥉'];
+                      return (
+                        <div key={i} className={'flex items-center gap-3 p-3 rounded-lg ' + mc[i]}>
+                          <span className="text-lg">{mi[i]}</span>
+                          <div className="flex-1 min-w-0"><p className="text-[13px] font-semibold leading-tight line-clamp-1">{item.nama}</p></div>
+                          <span className="text-sm font-bold">{item.nilai}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <button onClick={onClose} className={(isLulus ? 'bg-green-600 hover:bg-green-700' : 'bg-violet-500 hover:bg-gray-900') + ' w-full py-3 rounded-xl text-white font-medium text-sm transition-colors'}>Tutup</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // PASTE IMPORT MODAL
+    // ==========================================
+
+    function PasteImportModal({ onClose, onImportSuccess, showToast }) {
+      var stepState = useState('paste');
+      var step = stepState[0]; var setStep = stepState[1];
+      var textState = useState('');
+      var text = textState[0]; var setText = textState[1];
+      var parsedState = useState([]);
+      var parsed = parsedState[0]; var setParsed = parsedState[1];
+      var errorState = useState([]);
+      var errors = errorState[0]; var setErrors = errorState[1];
+      var importingState = useState(false);
+      var importing = importingState[0]; var setImporting = importingState[1];
+      var resultState = useState(null);
+      var result = resultState[0]; var setResult = resultState[1];
+
+      function handleParse() {
+        if (!text.trim()) { showToast('Tempel data dari Excel terlebih dahulu', 'error'); return; }
+        var lines = text.trim().split('\n');
+        var valid = [];
+        var errs = [];
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (!line) continue;
+          var cols = line.split('\t');
+          if (cols.length < 4) {
+            errs.push('Baris ' + (i + 1) + ': kolom kurang (minimal 4: NISN, Nama, Kelas, Status)');
+            continue;
+          }
+          valid.push({
+            nisn: cols[0].trim(), nama: cols[1].trim(), kelas: cols[2].trim(),
+            status: cols[3].trim(), nilai: cols[4] ? cols[4].trim() : ''
+          });
+        }
+        if (valid.length === 0) { showToast('Tidak ada data yang bisa diparse', 'error'); return; }
+        setParsed(valid); setErrors(errs); setStep('preview');
+      }
+
+      function handleImport() {
+        setImporting(true);
+        apiCall('/api/students/batch-create', { students: parsed })
+          .then(function (res) {
+            if (res.success) { setResult({ inserted: res.inserted, skipped: res.skipped, errors: res.errors }); showToast(res.message, 'success'); } 
+            else { setErrors(res.errors || []); showToast(res.message, 'error'); }
+          })
+          .catch(function (err) { showToast('Gagal import: ' + err.message, 'error'); })
+          .finally(function () { setImporting(false); });
+      }
+
+      if (step === 'paste') {
+        return (
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[95vh] overflow-y-auto animate-modal-in">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-semibold text-gray-800">Copas dari Excel</h3>
+                  <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-blue-800 font-medium mb-1">Cara menggunakan:</p>
+                  <ol className="text-xs text-blue-700 space-y-1 list-decimal list-inside">
+                    <li>Blok data siswa di Excel (Urutan kolom harus sesuai)</li>
+                    <li>Copy (Salin) data tersebut</li>
+                    <li>Paste (Tempel) di kotak bawah ini</li>
+                  </ol>
+                  <div className="overflow-x-auto mt-2">
+                    <p className="text-xs text-blue-600 font-mono bg-blue-100 rounded px-2 py-1 whitespace-nowrap">NISN | Nama | Kelas | Status | Nilai</p>
+                  </div>
+                </div>
+                <textarea
+                  value={text} onChange={function (e) { setText(e.target.value); }}
+                  placeholder="Paste data dari Excel di sini..." rows={6}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" autoFocus
+                />
+                <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                  <button onClick={onClose} className="w-full py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors">Batal</button>
+                  <button onClick={handleParse} disabled={!text.trim()} className={(text.trim() ? 'bg-violet-500 hover:bg-violet-600' : 'bg-gray-400 cursor-not-allowed') + ' w-full py-2.5 rounded-lg text-white font-medium text-sm transition-colors'}>
+                    Parse Data
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[95vh] overflow-y-auto animate-modal-in">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-semibold text-gray-800">Preview Data</h3>
+                <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              {result && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm font-semibold text-green-800 mb-1">Import Berhasil!</p>
+                  <p className="text-sm text-green-700">{result.inserted} data berhasil disimpan, {result.skipped} dilewati.</p>
+                  {result.errors.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {result.errors.map(function (e, i) { return <p key={i} className="text-[11px] sm:text-xs text-red-600">{e}</p>; })}
+                    </div>
+                  )}
+                  <button onClick={function () { onImportSuccess(); }} className="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">
+                    Selesai
+                  </button>
+                </div>
+              )}
+
+              {!result && errors.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm font-semibold text-red-800 mb-1">{errors.length} baris bermasalah:</p>
+                  <div className="space-y-0.5 max-h-24 overflow-y-auto">
+                    {errors.map(function (e, i) { return <p key={i} className="text-[11px] sm:text-xs text-red-700">{e}</p>; })}
+                  </div>
+                </div>
+              )}
+
+              {!result && (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-2"><strong>{parsed.length}</strong> data siap diimport</p>
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg max-h-[40vh]">
+                    <table className="w-full text-xs sm:text-sm whitespace-nowrap">
+                      <thead className="sticky top-0 bg-gray-50 z-10 shadow-sm">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">#</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">NISN</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Nama</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Kelas</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Status</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Nilai</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsed.map(function (row, i) {
+                          return (
+                            <tr key={i} className="border-t border-gray-100">
+                              <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                              <td className="px-3 py-2 font-mono">{row.nisn}</td>
+                              <td className="px-3 py-2">{row.nama}</td>
+                              <td className="px-3 py-2">{row.kelas}</td>
+                              <td className="px-3 py-2">{row.status}</td>
+                              <td className="px-3 py-2">{row.nilai || '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {!result && (
+                <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                  <button onClick={function () { setStep('paste'); setResult(null); }} className="w-full py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors">
+                    Kembali
+                  </button>
+                  <button onClick={handleImport} disabled={importing || parsed.length === 0} className={(importing || parsed.length === 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-violet-500 hover:bg-violet-600') + ' w-full py-2.5 rounded-lg text-white font-medium text-sm transition-colors'}>
+                    {importing ? 'Mengimport...' : 'Import ' + parsed.length + ' Data'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // PUBLIC PAGE
+    // ==========================================
+
+    function PublicPage({ onGoToLogin }) {
+      var sS = useState({ school_name: 'Sedang memuat data', announcement: '', logo_url: '', bg_url: '', gradient_start: '#1e3a5f', gradient_end: '#4a90d9', announcement_date: '' });
+      var settings = sS[0]; var setSettings = sS[1];
+      var nS = useState(''); var nisn = nS[0]; var setNisn = nS[1];
+      var seS = useState(false); var searching = seS[0]; var setSearching = seS[1];
+      var rS = useState(null); var result = rS[0]; var setResult = rS[1];
+
+      var loadingState = useState(true);
+      var loading = loadingState[0]; var setLoading = loadingState[1];
+      var progressState = useState(0);
+      var progress = progressState[0]; var setProgress = progressState[1];
+
+      useEffect(function () {
+        var current = 0;
+        var interval = setInterval(function () {
+          if (current >= 70) current += 0.3;
+          else if (current >= 40) current += 0.8;
+          else current += 2;
+          if (current >= 90) { current = 90; clearInterval(interval); }
+          setProgress(Math.round(current));
+        }, 50);
+        return function () { clearInterval(interval); };
+      }, []);
+
+      useEffect(function () {
+        apiCall('/api/public/settings')
+          .then(function (r) { if (r.success) setSettings(r.data); })
+          .catch(function () {})
+          .finally(function () { setProgress(100); setTimeout(function () { setLoading(false); }, 600); });
+      }, []);
+
+      function handleSearch(e) {
+        e.preventDefault();
+        if (!nisn.trim()) return;
+        setResult(null); setSearching(true);
+        apiCall('/api/students/search', { nisn: nisn.trim() })
+          .then(function (r) { setResult(r.success ? r.data : 'not_found'); })
+          .catch(function () { setResult('not_found'); })
+          .finally(function () { setSearching(false); });
+      }
+
+      var isOpen = isAnnouncementOpen(settings.announcement_date);
+      var showModal = result && result !== 'not_found';
+      var showConfetti = showModal && result.student.status === 'Lulus';
+
+      // Logika Background: Gambar URL atau Gradasi
+      var bgStyle = settings.bg_url
+        ? { backgroundImage: 'url(' + settings.bg_url + ')', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }
+        : { background: 'linear-gradient(-45deg, ' + settings.gradient_start + ', ' + settings.gradient_end + ', ' + settings.gradient_start + ', ' + settings.gradient_end + ')', backgroundSize: '400% 400%', animation: 'gradientShift 12s ease infinite' };
+
+      return (
+        <div className="min-h-screen relative flex flex-col overflow-hidden w-full" style={bgStyle}>
+          
+          {/* Efek gelembung (blur) tetap tampil jika pakai gradasi, jika pakai gambar URL bisa memberikan efek menarik */}
+          <div className="absolute w-72 h-72 rounded-full bg-white/10 blur-3xl animate-float1" style={{ top: '-10%', right: '-5%' }} />
+          <div className="absolute w-96 h-96 rounded-full bg-white/5 blur-3xl animate-float2" style={{ bottom: '-15%', left: '-10%' }} />
+          <div className="absolute w-64 h-64 rounded-full bg-white/10 blur-3xl animate-float3" style={{ bottom: '20%', right: '20%' }} />
+          
+          {/* Overlay gelap opsional jika menggunakan gambar url agar tulisan lebih terbaca */}
+          {settings.bg_url && <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"></div>}
+
+          {loading && (
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-4">
+              <div className="absolute inset-0 backdrop-blur-sm" style={{ background: settings.bg_url ? 'rgba(0,0,0,0.6)' : 'linear-gradient(135deg, ' + settings.gradient_start + 'cc, ' + settings.gradient_end + 'cc)' }} />
+              <div className="relative z-10 w-full max-w-xs text-center">
+                {settings.logo_url ? (
+                  <img src={settings.logo_url} alt="Logo" className="w-20 h-20 rounded-2xl object-contain mx-auto mb-6 shadow-xl bg-white/10 p-1 animate-logo-move" />
+                ) : (
+                  <div className="w-20 h-20 bg-white/15 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-6 animate-logo-move">
+                    <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l9-5-9-5-9 5 9 5z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>
+                  </div>
+                )}
+                <div className="w-full bg-white/15 rounded-full h-2 mb-3 overflow-hidden">
+                  <div className="h-full bg-white rounded-full transition-all duration-300 ease-out" style={{ width: progress + '%' }} />
+                </div>
+                <p className="text-white/80 text-sm font-medium mb-6">{progress}%</p>
+                <p className="text-white font-semibold text-lg px-2 shadow-black/50 drop-shadow-md">{settings.school_name || 'Cek Kelulusan Madrasah'}</p>
+                <p className="text-white text-xs mt-8 font-bold shadow-black/50 drop-shadow-md">Designed by <a title="afuy apps" target="_blank" rel="noopener noreferrer" className="underline hover:text-white/80">AFUY</a> <br /> Bersama Dunia</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && (
+            <div className="relative z-10 flex flex-col flex-1 w-full">
+              {showConfetti && <Confetti />}
+              {showModal && <ResultModal student={result.student} topThree={result.topThree} onClose={function () { setResult(null); setNisn(''); }} />}
+
+              <div className="flex justify-end p-4">
+                <button onClick={onGoToLogin} className="text-white/70 hover:text-white text-xs sm:text-sm font-medium transition-colors bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20">Admin Area</button>
+              </div>
+
+              <div className="flex-1 flex items-center justify-center px-4 py-6 w-full">
+                <div className="w-full max-w-sm">
+                  <div className="text-center mb-8 animate-fade-in">
+                    {settings.logo_url && <img src={settings.logo_url} alt="Logo" className="w-20 h-20 rounded-xl object-contain mx-auto mb-4 shadow-lg bg-white/10 p-1 animate-logo-move" />}
+                    {!settings.logo_url && (
+                      <div className="w-20 h-20 bg-white/15 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-4 animate-logo-move">
+                        <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l9-5-9-5-9 5 9 5z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>
+                      </div>
+                    )}
+                    <h1 className="text-lg sm:text-xl font-bold text-white px-2 drop-shadow-lg">{settings.school_name || 'Cek Kelulusan Madrasah'}</h1>
+                    
+                    {/* BAGIAN PENAMBAHAN TAHUN AJARAN DAN ALAMAT */}
+                    <h2 className="text-sm sm:text-base font-bold text-white mt-1 drop-shadow-md tracking-wider">TAHUN AJARAN 2025/2026</h2>
+                    <h3 className="text-[13px] sm:text-sm font-semibold text-white/90 mt-1 drop-shadow-md tracking-wide uppercase">Kecamatan Campakamulya Kabupaten Cianjur</h3>
+                    
+                    {/* RUNNING TEXT */}
+                    <div className="w-full overflow-hidden bg-transparent mt-3 mb-2 relative">
+                      <div className="animate-marquee">
+                        <span className="text-yellow-300 font-semibold text-[13px] sm:text-sm drop-shadow-md">
+                          Selamat Datang di Portal Pengumuman Kelulusan. Silakan masukkan NISN Anda untuk melihat hasil.
+                        </span>
+                      </div>
+                    </div>
+
+                    {settings.announcement && <p className="text-white/90 text-[13px] sm:text-sm mt-3 leading-relaxed px-2 drop-shadow-md">{settings.announcement}</p>}
+                  </div>
+
+                  {!isOpen && (
+                    <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-xl p-5 sm:p-6 border border-white/20 animate-fade-in w-full">
+                      <div className="text-center mb-6">
+                        <svg className="w-10 h-10 sm:w-12 sm:h-12 text-white/90 mx-auto mb-3 drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <p className="text-white font-semibold text-sm sm:text-base tracking-wide drop-shadow-md">PENGUMUMAN BELUM DIBUKA</p>
+                      </div>
+                      <Countdown targetDate={settings.announcement_date} />
+                    </div>
+                  )}
+
+                  {isOpen && (
+                    <form onSubmit={handleSearch} className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-5 sm:p-6 animate-fade-in w-full border border-white/40">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Masukkan NISN</label>
+                      <input type="number" inputMode="numeric" value={nisn} onChange={function (e) { setNisn(e.target.value); if (result !== null) setResult(null); }} placeholder="Nomor Induk Siswa Nasional (NISN)" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4 transition-shadow" />
+                      <button type="submit" disabled={searching || !nisn.trim()} className={(searching || !nisn.trim() ? 'bg-gray-400 cursor-not-allowed' : 'btn-gradasi-keren active:scale-[0.98]') + ' w-full py-3.5 rounded-xl text-sm sm:text-base transition-all shadow-md'}>{searching ? 'Sedang Mencari...' : 'CEK KELULUSAN'}</button>
+                    </form>
+                  )}
+
+                  {result === 'not_found' && (
+                    <div className="mt-5 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-5 text-center animate-fade-in border border-white/40">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <svg className="w-7 h-7 sm:w-8 sm:h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                      </div>
+                      <p className="text-sm sm:text-base font-bold text-yellow-700 mb-1">NISN Tidak Ditemukan</p>
+                      <p className="text-[13px] sm:text-sm text-gray-500">Pastikan NISN yang dimasukkan sudah benar.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="text-center pb-6 pt-2"><p className="text-white/60 drop-shadow-md text-[11px] sm:text-xs">© Hak Cipta Dilindungi</p></div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // LOGIN FORM
+    // ==========================================
+
+    function LoginForm({ onLoginSuccess, onBack }) {
+      var pS = useState(''); var password = pS[0]; var setPassword = pS[1];
+      var lS = useState(false); var loading = lS[0]; var setLoading = lS[1];
+      var eS = useState(''); var error = eS[0]; var setError = eS[1];
+      function handleSubmit(e) {
+        e.preventDefault();
+        if (!password) { setError('Masukkan password'); return; }
+        setError(''); setLoading(true);
+        apiCall('/api/login', { password: password }).then(function (r) { if (r.success) onLoginSuccess(r.firstTime); else setError(r.message); }).catch(function (err) { setError('Gagal: ' + err.message); }).finally(function () { setLoading(false); });
+      }
+      return (
+        <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gray-50 w-full">
+          <div className="w-full max-w-sm">
+            <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-800 transition-colors mb-6 inline-flex items-center gap-1 p-2 -ml-2 rounded-lg hover:bg-gray-200">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>Kembali ke Publik
+            </button>
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-violet-200">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477-4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-800">Area Admin</h1>
+            </div>
+            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-6 sm:p-8">
+              <div className="mb-5">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Password Akses</label>
+                <input type="password" value={password} onChange={function (e) { setPassword(e.target.value); }} placeholder="Masukkan password admin" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all" autoFocus />
+              </div>
+              {error && (<div className="mb-5 p-3.5 bg-red-50 border border-red-200 text-red-700 text-[13px] rounded-xl font-medium">{error}</div>)}
+              <button type="submit" disabled={loading} className={(loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-700 active:scale-[0.98]') + ' w-full py-3.5 rounded-xl text-white font-bold text-sm transition-all shadow-md shadow-violet-200'}>{loading ? 'Memverifikasi...' : 'Masuk Dashboard'}</button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // SETTINGS PANEL
+    // ==========================================
+
+    function SettingsPanel({ showToast }) {
+      var sS = useState(null); var settings = sS[0]; var setSettings = sS[1];
+      var lS = useState(true); var loading = lS[0]; var setLoading = lS[1];
+      var svS = useState(false); var saving = svS[0]; var setSaving = svS[1];
+      var uploadingState = useState(false); var uploading = uploadingState[0]; var setUploading = uploadingState[1];
+      var fileInputRef = useRef(null);
+
+      useEffect(function () {
+        apiCall('/api/settings').then(function (r) { if (r.success) setSettings(r.data); }).catch(function (e) { showToast('Gagal: ' + e.message, 'error'); }).finally(function () { setLoading(false); });
+      }, []);
+
+      function ch(key, value) { setSettings(function (p) { var u = {}; for (var k in p) u[k] = p[k]; u[key] = value; return u; }); }
+
+      function handleLogoUpload(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        if (file.type !== 'image/png') { showToast('Format file harus PNG', 'error'); e.target.value = ''; return; }
+        if (file.size > 2 * 1024 * 1024) { showToast('Ukuran file maksimal 2MB', 'error'); e.target.value = ''; return; }
+        setUploading(true);
+        var reader = new FileReader();
+        reader.onload = function (event) {
+          apiCall('/api/logo/upload', { base64: event.target.result }).then(function (res) {
+              if (res.success) { ch('logo_url', res.data.url); showToast('Logo berhasil diupload', 'success'); } 
+              else { showToast(res.message, 'error'); }
+            }).catch(function (err) { showToast('Gagal upload', 'error'); }).finally(function () { setUploading(false); e.target.value = ''; });
+        };
+        reader.onerror = function () { showToast('Gagal membaca file', 'error'); setUploading(false); e.target.value = ''; };
+        reader.readAsDataURL(file);
+      }
+
+      function handleRemoveLogo() {
+        if (settings.logo_url) { apiCall('/api/logo/upload', { base64: '' }).catch(function () {}); }
+        ch('logo_url', ''); if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+
+      function handleSave(e) {
+        e.preventDefault(); setSaving(true);
+        apiCall('/api/settings/update', settings).then(function (r) { if (r.success) showToast('Pengaturan disimpan', 'success'); else showToast(r.message, 'error'); }).catch(function (e) { showToast('Gagal disimpan', 'error'); }).finally(function () { setSaving(false); });
+      }
+
+      if (loading) return <div className="py-12 text-center text-gray-500 text-sm">Memuat pengaturan...</div>;
+      var isDriveUrl = settings.logo_url && settings.logo_url.indexOf('googleusercontent.com') !== -1;
+
+      return (
+        <form onSubmit={handleSave} className="space-y-4 sm:space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <h2 className="text-base font-bold text-gray-800 mb-4 border-b pb-2">Identitas Sekolah</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nama Sekolah</label>
+                <input type="text" value={settings.school_name || ''} onChange={function (e) { ch('school_name', e.target.value); }} placeholder="Misal: MTs Al-Hidayah" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Logo Sekolah</label>
+                {settings.logo_url && (
+                  <div className="mb-3 flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <img src={settings.logo_url} alt="Preview" className="w-12 h-12 rounded-lg object-contain bg-white border border-gray-200 p-1" />
+                    <div className="flex-1 min-w-0"><p className="text-[11px] sm:text-xs text-gray-600 truncate font-mono">{isDriveUrl ? 'Logo (Google Drive)' : settings.logo_url}</p></div>
+                    <button type="button" onClick={handleRemoveLogo} className="text-red-500 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors" title="Hapus"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                  </div>
+                )}
+                <div className="flex flex-col sm:flex-row gap-2 mb-2 w-full">
+                  <input ref={fileInputRef} type="file" accept=".png,image/png" onChange={handleLogoUpload} className="hidden" />
+                  <button type="button" onClick={function () { fileInputRef.current.click(); }} disabled={uploading} className={(uploading ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'border-2 border-dashed border-violet-300 hover:border-violet-500 hover:bg-violet-50 text-violet-700') + ' w-full py-3 rounded-xl text-sm transition-colors font-medium flex items-center justify-center gap-2'}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    {uploading ? 'Proses Upload...' : 'Pilih File PNG (Maks 2MB)'}
+                  </button>
+                </div>
+                <input type="url" value={isDriveUrl ? '' : (settings.logo_url || '')} onChange={function (e) { ch('logo_url', e.target.value); }} placeholder="Atau paste link URL gambar langsung..." className="w-full px-4 py-3 border border-gray-300 rounded-xl text-[13px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 mt-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Teks Sambutan / Pesan</label>
+                <textarea value={settings.announcement || ''} onChange={function (e) { ch('announcement', e.target.value); }} placeholder="Tuliskan ucapan atau informasi bagi siswa..." rows={4} className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <h2 className="text-base font-bold text-gray-800 mb-4 border-b pb-2">Jadwal Pengumuman</h2>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Tanggal & Waktu Rilis</label>
+              <input type="datetime-local" value={toDatetimeLocal(settings.announcement_date)} onChange={function (e) { var v = e.target.value; ch('announcement_date', v ? new Date(v).toISOString() : ''); }} className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+              <div className="mt-2">{settings.announcement_date ? (<p className="text-[13px] text-green-600 bg-green-50 p-2 rounded-lg font-medium">Dibuka pada: {new Date(settings.announcement_date).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })}</p>) : (<p className="text-[13px] text-yellow-600 bg-yellow-50 p-2 rounded-lg font-medium">Jika dikosongkan, web langsung bisa diakses.</p>)}</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <h2 className="text-base font-bold text-gray-800 mb-4 border-b pb-2">Background Tampilan Awal</h2>
+            <div className="mb-4">
+              <label className="block text-[13px] font-semibold text-gray-700 mb-1">Gunakan Gambar Background (URL)</label>
+              <input type="url" value={settings.bg_url || ''} onChange={function (e) { ch('bg_url', e.target.value); }} placeholder="Paste link URL gambar (misal: https://web.com/bg.jpg)" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-[13px] font-mono focus:outline-none focus:ring-2 focus:ring-violet-500" />
+              <p className="text-[11px] text-gray-500 mt-1.5">Kosongkan kolom ini jika ingin menggunakan warna gradasi bergerak.</p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-4 border-t pt-4">
+              <div>
+                <label className="block text-[13px] font-semibold text-gray-700 mb-1">Gradasi Awal</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={settings.gradient_start || '#1e3a5f'} onChange={function (e) { ch('gradient_start', e.target.value); }} className="w-12 h-12 rounded-xl border border-gray-300 cursor-pointer p-1 bg-white flex-shrink-0" />
+                  <input type="text" value={settings.gradient_start || '#1e3a5f'} onChange={function (e) { ch('gradient_start', e.target.value); }} className="w-full px-3 py-3 border border-gray-300 rounded-xl text-[13px] font-mono focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[13px] font-semibold text-gray-700 mb-1">Gradasi Akhir</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={settings.gradient_end || '#4a90d9'} onChange={function (e) { ch('gradient_end', e.target.value); }} className="w-12 h-12 rounded-xl border border-gray-300 cursor-pointer p-1 bg-white flex-shrink-0" />
+                  <input type="text" value={settings.gradient_end || '#4a90d9'} onChange={function (e) { ch('gradient_end', e.target.value); }} className="w-full px-3 py-3 border border-gray-300 rounded-xl text-[13px] font-mono focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 h-16 rounded-xl border border-gray-200 shadow-inner" style={{ background: 'linear-gradient(to right, ' + (settings.gradient_start || '#1e3a5f') + ', ' + (settings.gradient_end || '#4a90d9') + ')' }} />
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+            <h2 className="text-base font-bold text-gray-800 mb-4 border-b pb-2">Akses Keamanan</h2>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Ubah Password Admin</label>
+              <input type="text" value={settings.admin_password || ''} onChange={function (e) { ch('admin_password', e.target.value); }} placeholder="Ketik sandi baru..." className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+              <p className="text-[12px] text-gray-500 mt-2 bg-gray-50 p-2 rounded-lg">{settings.admin_password ? '✅ Sandi aktif. Kosongkan form ini jika ingin menghapus pengamanan login.' : '⚠️ Peringatan: Saat ini tidak ada password, siapa saja bisa masuk ke admin.'}</p>
+            </div>
+          </div>
+
+          <button type="submit" disabled={saving} className={(saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-700 active:scale-[0.98]') + ' w-full py-4 rounded-xl text-white font-bold text-base transition-all shadow-lg shadow-violet-200 sticky bottom-4 z-10'}>{saving ? 'Proses Menyimpan...' : 'SIMPAN SEMUA PENGATURAN'}</button>
+        </form>
+      );
+    }
+
+    // ==========================================
+    // STUDENT FORM
+    // ==========================================
+
+    function StudentForm({ initialData, onSubmit, onCancel }) {
+      var isEdit = initialData !== null;
+      var nS = useState(initialData ? initialData.nisn : ''); var nisn = nS[0]; var setNisn = nS[1];
+      var nmS = useState(initialData ? initialData.nama : ''); var nama = nmS[0]; var setNama = nmS[1];
+      var kS = useState(initialData ? initialData.kelas : ''); var kelas = kS[0]; var setKelas = kS[1];
+      var stS = useState(initialData ? initialData.status : 'Lulus'); var status = stS[0]; var setStatus = stS[1];
+      var nliS = useState(initialData ? initialData.nilai : ''); var nilai = nliS[0]; var setNilai = nliS[1];
+      var sbS = useState(false); var submitting = sbS[0]; var setSubmitting = sbS[1];
+      var eS = useState(''); var error = eS[0]; var setError = eS[1];
+
+      function handleSubmit(e) {
+        e.preventDefault();
+        if (!nisn || !nama || !kelas || !status) { setError('Mohon lengkapi form bertanda (*)'); return; }
+        setError(''); setSubmitting(true);
+        var payload = { nisn: nisn, nama: nama, kelas: kelas, status: status, nilai: nilai };
+        if (isEdit) payload.id = initialData.id;
+        onSubmit(payload, isEdit ? '/api/students/update' : '/api/students/create').catch(function () {}).finally(function () { setSubmitting(false); });
+      }
+
+      return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-4 animate-fade-in">
+          <h3 className="text-base font-bold text-gray-800 mb-4 border-b pb-2">{isEdit ? '✏️ Edit Data Siswa' : '➕ Tambah Siswa Baru'}</h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label className="block text-[13px] font-semibold text-gray-700 mb-1">NISN <span className="text-red-500">*</span></label><input type="number" inputMode="numeric" value={nisn} onChange={function (e) { setNisn(e.target.value); }} placeholder="Nomor Induk" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" /></div>
+              <div><label className="block text-[13px] font-semibold text-gray-700 mb-1">Kelas <span className="text-red-500">*</span></label><input type="text" value={kelas} onChange={function (e) { setKelas(e.target.value); }} placeholder="Contoh: IX-A" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" /></div>
+            </div>
+            <div><label className="block text-[13px] font-semibold text-gray-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label><input type="text" value={nama} onChange={function (e) { setNama(e.target.value); }} placeholder="Sesuai ijazah..." className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label className="block text-[13px] font-semibold text-gray-700 mb-1">Status Kelulusan <span className="text-red-500">*</span></label><select value={status} onChange={function (e) { setStatus(e.target.value); }} className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"><option value="Lulus">Lulus</option><option value="Tidak Lulus">Tidak Lulus</option></select></div>
+              <div><label className="block text-[13px] font-semibold text-gray-700 mb-1">Nilai Rata-rata <span className="text-gray-400 font-normal">(opsional)</span></label><input type="number" step="any" min="0" value={nilai} onChange={function (e) { setNilai(e.target.value); }} placeholder="Cth: 85.5" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" /></div>
+            </div>
+            {error && (<div className="p-3 bg-red-50 border border-red-200 text-red-700 text-[13px] rounded-xl font-medium">{error}</div>)}
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <button type="button" onClick={onCancel} className="w-full sm:w-1/3 py-3 border border-gray-300 rounded-xl text-gray-700 font-bold text-sm hover:bg-gray-50 transition-colors">Batalkan</button>
+              <button type="submit" disabled={submitting} className={(submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-700') + ' w-full sm:w-2/3 py-3 rounded-xl text-white font-bold text-sm transition-colors shadow-md shadow-violet-200'}>{submitting ? 'Memproses...' : (isEdit ? 'SIMPAN PERUBAHAN' : 'TAMBAHKAN SISWA')}</button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // STUDENT TABLE
+    // ==========================================
+
+    function StudentTable({ students, onEdit, onDelete }) {
+      if (students.length === 0) {
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 sm:p-12 text-center mt-4">
+            <svg className="w-14 h-14 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            <p className="text-gray-500 font-medium">Belum ada data siswa diinput.</p>
+            <p className="text-xs text-gray-400 mt-1">Silakan Tambah Manual atau Import dari Excel.</p>
+          </div>
+        );
+      }
+      return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+          <div className="overflow-x-auto w-full -webkit-overflow-scrolling-touch">
+            <table className="w-full text-left border-collapse whitespace-nowrap sm:whitespace-normal min-w-[600px]">
+              <thead>
+                <tr className="bg-gray-100 border-b border-gray-200">
+                  <th className="px-4 py-3 font-semibold text-gray-600 text-[13px]">NISN</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 text-[13px]">Nama Siswa</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 text-[13px]">Kelas</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 text-[13px]">Status</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 text-[13px]">Nilai</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 text-[13px] text-right">Opsi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {students.map(function (s) {
+                  return (
+                    <tr key={s.id} className="hover:bg-violet-50/50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-[13px] text-gray-600">{s.nisn}</td>
+                      <td className="px-4 py-3 font-bold text-gray-800 text-sm max-w-[200px] truncate" title={s.nama}>{s.nama}</td>
+                      <td className="px-4 py-3 text-[13px] text-gray-600">{s.kelas}</td>
+                      <td className="px-4 py-3">
+                        <span className={(s.status === 'Lulus' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200') + ' border px-2.5 py-1 rounded-lg text-[11px] font-bold tracking-wide'}>
+                          {s.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] font-semibold text-gray-700">{s.nilai || '-'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={function () { onEdit(s); }} className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors" title="Edit Data"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                          <button onClick={function () { onDelete(s); }} className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors" title="Hapus Data"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center"><p className="text-[11px] sm:text-xs text-gray-500 font-medium">Total: <span className="font-bold text-gray-800">{students.length}</span> data terdaftar</p></div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // STUDENTS PANEL
+    // ==========================================
+
+    function StudentsPanel({ showToast }) {
+      var sS = useState([]); var students = sS[0]; var setStudents = sS[1];
+      var lS = useState(true); var loading = lS[0]; var setLoading = lS[1];
+      var etS = useState(null); var editTarget = etS[0]; var setEditTarget = etS[1];
+      var sfS = useState(false); var showForm = sfS[0]; var setShowForm = sfS[1];
+      var dtS = useState(null); var deleteTarget = dtS[0]; var setDeleteTarget = dtS[1];
+      var dS = useState(false); var deleting = dS[0]; var setDeleting = dS[1];
+      var imS = useState(false); var showImport = imS[0]; var setShowImport = imS[1];
+
+      function load() {
+        setLoading(true);
+        apiCall('/api/students').then(function (r) { if (r.success) setStudents(r.data); else showToast(r.message, 'error'); }).catch(function (e) { showToast('Gagal: ' + e.message, 'error'); }).finally(function () { setLoading(false); });
+      }
+      useEffect(function () { load(); }, []);
+
+      function submit(payload, endpoint) {
+        return apiCall(endpoint, payload).then(function (r) {
+          if (r.success) { showToast(r.message, 'success'); setShowForm(false); setEditTarget(null); load(); }
+          else { showToast(r.message, 'error'); throw new Error(r.message); }
+        });
+      }
+      function edit(s) { setEditTarget(s); setShowForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      function del(s) { setDeleteTarget(s); }
+      function confirmDel() {
+        if (!deleteTarget) return; setDeleting(true);
+        apiCall('/api/students/delete', { id: deleteTarget.id }).then(function (r) { if (r.success) { showToast(r.message, 'success'); load(); } else showToast(r.message, 'error'); }).catch(function (e) { showToast('Gagal: ' + e.message, 'error'); }).finally(function () { setDeleting(false); setDeleteTarget(null); });
+      }
+      function cancel() { setShowForm(false); setEditTarget(null); }
+      function importDone() { setShowImport(false); load(); }
+
+      if (loading) return <div className="py-12 text-center text-gray-500 font-medium text-sm animate-pulse">Memuat database siswa...</div>;
+
+      return (
+        <div className="space-y-4">
+          {!showForm && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={function () { setEditTarget(null); setShowForm(true); }} className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 text-white px-5 py-3 rounded-xl font-bold text-sm transition-colors shadow-md shadow-violet-200">
+                + Tambah Manual
+              </button>
+              <button onClick={function () { setShowImport(true); }} className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold text-sm transition-colors shadow-md shadow-emerald-200 inline-flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                Import dari Excel
+              </button>
+            </div>
+          )}
+
+          {showForm && <StudentForm initialData={editTarget} onSubmit={submit} onCancel={cancel} />}
+          <StudentTable students={students} onEdit={edit} onDelete={del} />
+
+          {showImport && <PasteImportModal onClose={function () { setShowImport(false); }} onImportSuccess={importDone} showToast={showToast} />}
+
+          {deleteTarget && (
+            <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={function () { setDeleteTarget(null); }} />
+              <div className="relative bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full animate-modal-in">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800 mb-2 text-center">Hapus Data Ini?</h3>
+                <p className="text-sm text-gray-600 mb-6 text-center">Tindakan ini tidak bisa dibatalkan. Menghapus <strong>{deleteTarget.nama}</strong> (NISN: {deleteTarget.nisn}) dari sistem.</p>
+                <div className="flex gap-3">
+                  <button onClick={function () { setDeleteTarget(null); }} disabled={deleting} className="flex-1 py-3 border border-gray-300 rounded-xl text-gray-700 font-bold text-sm hover:bg-gray-50 transition-colors">Batal</button>
+                  <button onClick={confirmDel} disabled={deleting} className={(deleting ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700') + ' flex-1 py-3 rounded-xl text-white font-bold text-sm transition-colors shadow-md shadow-red-200'}>{deleting ? 'Memproses...' : 'Ya, Hapus'}</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // ADMIN PANEL
+    // ==========================================
+
+    function AdminPanel({ onLogout, showToast }) {
+      var tS = useState('students'); var activeTab = tS[0]; var setActiveTab = tS[1];
+      var tabs = [
+        { id: 'students', label: 'Data Siswa', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+        { id: 'settings', label: 'Pengaturan', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' }
+      ];
+      return (
+        <div className="min-h-screen flex flex-col w-full bg-gray-50/50">
+          <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+            <div className="max-w-3xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                </div>
+                <div><h1 className="text-base sm:text-lg font-bold text-gray-800 leading-tight">Admin System</h1><p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5">Kelola Kelulusan</p></div>
+              </div>
+              <button onClick={onLogout} className="text-[13px] sm:text-sm font-bold text-red-500 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                Keluar <svg className="w-4 h-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              </button>
+            </div>
+            <div className="max-w-3xl mx-auto px-4">
+              <nav className="flex gap-2 sm:gap-4 overflow-x-auto hide-scrollbar">
+                {tabs.map(function (tab) {
+                  var a = activeTab === tab.id;
+                  return (<button key={tab.id} onClick={function () { setActiveTab(tab.id); }} className={(a ? 'border-violet-600 text-violet-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300') + ' whitespace-nowrap flex items-center gap-2 px-2 py-3.5 border-b-2 font-bold text-[13px] sm:text-sm transition-colors'}><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} /></svg>{tab.label}</button>);
+                })}
+              </nav>
+            </div>
+          </header>
+          
+          <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-6 mb-10">
+            {activeTab === 'students' && <StudentsPanel showToast={showToast} />}
+            {activeTab === 'settings' && <SettingsPanel showToast={showToast} />}
+          </main>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // APP
+    // ==========================================
+
+    function App() {
+      var pS = useState('public'); var page = pS[0]; var setPage = pS[1];
+      var tS = useState(null); var toast = tS[0]; var setToast = tS[1];
+      function loginOK(ft) { setPage('admin'); if (ft) setToast({ message: 'Peringatan: Password belum diset, atur di menu Pengaturan.', type: 'info' }); }
+      function logout() { setPage('public'); }
+      function show(msg, type) { setToast({ message: msg, type: type }); }
+      return (
+        <div className="w-full">
+          {toast && <Toast message={toast.message} type={toast.type} onClose={function () { setToast(null); }} />}
+          {page === 'public' && <PublicPage onGoToLogin={function () { setPage('login'); }} />}
+          {page === 'login' && <LoginForm onLoginSuccess={loginOK} onBack={function () { setPage('public'); }} />}
+          {page === 'admin' && <AdminPanel onLogout={logout} showToast={show} />}
+        </div>
+      );
+    }
+
+    var rootElement = document.getElementById('root');
+    var root = ReactDOM.createRoot(rootElement);
+    root.render(<App />);
+  </script>
+</body>
+</html>
